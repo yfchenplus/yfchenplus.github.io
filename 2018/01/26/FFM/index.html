@@ -86,7 +86,7 @@
 <meta property="og:site_name" content="Express Helps Understand">
 <meta property="og:description" content="前言最近读了两篇关于 Factorization Machines (FM)和 Field-aware Factorization Machines for CTR Prediction 论文。在这里谈谈个人对这两个模型的理解。这两个模型的创新之处在于，FM考虑了特征之间的交互信息，FFM考虑了特征和域之间的交互信息。本文首先介绍为什么要考虑特征之间的交互信息，然后讲解 FM 和 FFM 是分别如">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2018-11-15T16:04:36.352Z">
+<meta property="og:updated_time" content="2018-02-01T14:25:20.514Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="看一个傻子如何学习 FM 和 FFM">
 <meta name="twitter:description" content="前言最近读了两篇关于 Factorization Machines (FM)和 Field-aware Factorization Machines for CTR Prediction 论文。在这里谈谈个人对这两个模型的理解。这两个模型的创新之处在于，FM考虑了特征之间的交互信息，FFM考虑了特征和域之间的交互信息。本文首先介绍为什么要考虑特征之间的交互信息，然后讲解 FM 和 FFM 是分别如">
@@ -479,7 +479,7 @@
 </table>
 </div>
 <p>表 2:  二值化后样本的特征表示。</p>
-<h2 id="如何融合特征之间的交互信息"><a href="#如何融合特征之间的交互信息" class="headerlink" title="如何融合特征之间的交互信息"></a>如何融合特征之间的交互信息</h2><p>一般有两种方式可以融合特征之间的交互信息。一种从特征工程的角度，例如做两个特征之间的笛卡儿积，比如把性别和年龄两个特征做笛卡儿积的话，就会得到如下六个二值性特征（女&amp;&amp;青年，女&amp;&amp;中年，女&amp;&amp;老年，…，男&amp;&amp;老年）。另一种是从模型的角度，也就是本文要阐述的内容。<br>下面我们先从基本的没有考虑特征交互信息的 Logistic Regression 说起。假设我们有$m$ ${x}_{i}$个样本(${x}_{i}$， ${y}_{i}$), i = 1, 2, 3,… ,m。向量${x}_{i}$是$n$维特征向量，${y}_{i}$是标签，${y}_{i}\in \left\{ -1, 1\right\}$, 并定义如下的条件概率分布。</p>
+<h2 id="如何融合特征之间的交互信息"><a href="#如何融合特征之间的交互信息" class="headerlink" title="如何融合特征之间的交互信息"></a>如何融合特征之间的交互信息</h2><p>一般有两种方式可以融合特征之间的交互信息。一种从特征工程的角度，例如做两个特征之间的笛卡儿积，比如把性别和年龄两个特征做笛卡儿积的话，就会得到如下六个二值性特征（女&amp;&amp;青年，女&amp;&amp;中年，女&amp;&amp;老年，…，男&amp;&amp;老年）。另一种是从模型的角度，也就是本文要阐述的内容。<br>下面我们先从基本的没有考虑特征交互信息的 Logistic Regression 说起。假设我们有$m$个样本(${x}_{i}$， ${y}_{i}$), i = 1, 2, 3,… ,m。向量${x}_{i}$是$n$维特征向量，${y}_{i}$是标签，${y}_{i}\in \left\{ -1, 1\right\}$, 并定义如下的条件概率分布。</p>
 <script type="math/tex; mode=display">
 P({y}_{i}|{x}_{i}) =
 \begin{cases}
@@ -1196,7 +1196,7 @@ P({y}_{i}|{x}_{i}) =
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">3</span>
+                  <span class="site-state-item-count">2</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
