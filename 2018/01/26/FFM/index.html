@@ -86,7 +86,7 @@
 <meta property="og:site_name" content="Express Helps Understand">
 <meta property="og:description" content="前言最近读了两篇关于 Factorization Machines (FM)和 Field-aware Factorization Machines for CTR Prediction 论文。在这里谈谈个人对这两个模型的理解。这两个模型的创新之处在于，FM考虑了特征之间的交互信息，FFM考虑了特征和域之间的交互信息。本文首先介绍为什么要考虑特征之间的交互信息，然后讲解 FM 和 FFM 是分别如">
 <meta property="og:locale" content="zh-Hans">
-<meta property="og:updated_time" content="2018-02-01T14:25:20.514Z">
+<meta property="og:updated_time" content="2018-11-15T16:04:36.352Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="看一个傻子如何学习 FM 和 FFM">
 <meta name="twitter:description" content="前言最近读了两篇关于 Factorization Machines (FM)和 Field-aware Factorization Machines for CTR Prediction 论文。在这里谈谈个人对这两个模型的理解。这两个模型的创新之处在于，FM考虑了特征之间的交互信息，FFM考虑了特征和域之间的交互信息。本文首先介绍为什么要考虑特征之间的交互信息，然后讲解 FM 和 FFM 是分别如">
@@ -346,6 +346,7 @@
       
         <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>最近读了两篇关于 <a href="http://www.algo.uni-konstanz.de/members/rendle/pdf/Rendle2010FM.pdf" target="_blank" rel="noopener">Factorization Machines (FM)</a>和 <a href="https://www.andrew.cmu.edu/user/yongzhua/conferences/ffm.pdf" target="_blank" rel="noopener">Field-aware Factorization Machines for CTR Prediction</a> 论文。在这里谈谈个人对这两个模型的理解。这两个模型的创新之处在于，FM考虑了特征之间的交互信息，FFM考虑了特征和域之间的交互信息。本文首先介绍为什么要考虑特征之间的交互信息，然后讲解 FM 和 FFM 是分别如何融合特征之间的交互信息和特征和域之间的交互信息，最后介绍模型的应用场景和实验效果。</p>
 <h2 id="为什么要考虑特征之间的交互信息"><a href="#为什么要考虑特征之间的交互信息" class="headerlink" title="为什么要考虑特征之间的交互信息"></a>为什么要考虑特征之间的交互信息</h2><p>我们举例说明：</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -388,9 +389,11 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>表 1:  一个伪造的CTR数据集，+（-）代表点击和未点击的样本个数。</p>
 <p>这里的数据集比较特殊，只是为了解释说明用，无特别说明，本文提到数据集都是指这个数据集,我们称这个数据集为toy数据集。从上表可以看出如果一条广告满足 <strong>广告类型=化妆品 和 性别=女</strong> 时，该广告的点击率明显高于其他样本。这现象也是符合直观认识的,在现实世界的部分场景中，特征之间存在很强的关联。</p>
 <p>这里我们对数据进行简单的处理，假设广告类型只有三种：化妆品，篮球和汽车。性别只有两种：男和女。年龄是 0到100 的整数值。在这个toy数据集中离散性的特征有广告类型和性别，数值型的特征有年龄。我们对离散性的特征进行one-hot编码，对数值性的特征进行离散化。对广告类型我们衍生出三个新的特征：广告类型 = 化妆品，广告类型 = 篮球，广告类型 = 汽车，<strong>特征编号</strong>依次是1， 2， 3。对性别类型我们衍生出两个特征：性别 = 男，性别 = 女，<strong>特征编号</strong>依次是5， 6。对数值型的数据产生三个特征：年龄=青年（年龄&lt;=30）,年龄=中年（年龄&lt;=50）,年龄=老年（年龄&gt;50），<strong>特征编号</strong>依次是7， 8， 9。因此得到下表的数据格式，分别对应本文toy数据集的五类样本。最终我们得到了8个二值性特征，满足等式条件则为1，否则为0。对离散特征和数值型特征的处理还有其他方式，这里采取的是比较简单的处理方式，可以看到处理之后的数据每行只有三个非零元素，因此数据是比较稀疏的。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -474,23 +477,26 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>表 2:  二值化后样本的特征表示。</p>
-<h2 id="如何融合特征之间的交互信息"><a href="#如何融合特征之间的交互信息" class="headerlink" title="如何融合特征之间的交互信息"></a>如何融合特征之间的交互信息</h2><p>一般有两种方式可以融合特征之间的交互信息。一种从特征工程的角度，例如做两个特征之间的笛卡儿积，比如把性别和年龄两个特征做笛卡儿积的话，就会得到如下六个二值性特征（女&amp;&amp;青年，女&amp;&amp;中年，女&amp;&amp;老年，…，男&amp;&amp;老年）。另一种是从模型的角度，也就是本文要阐述的内容。<br>下面我们先从基本的没有考虑特征交互信息的 Logistic Regression 说起。假设我们有$m$个样本(${x}<em>{i}$， ${y}</em>{i}$), i = 1, 2, 3,… ,m。向量${x}<em>{i}$是$n$维特征向量，${y}</em>{i}$是标签，${y}_{i}\in \left{ -1, 1\right}$, 并定义如下的条件概率分布。</p>
-<p>$$<br>P({y}<em>{i}|{x}</em>{i}) =<br>\begin{cases}<br>\sigma(\phi(w, {x}<em>{i}))=\frac{1}{1+{e}^{-\phi(w, {x}</em>{i})}},  &amp; \text{if  ${y}<em>{i} = 1$ } \<br>1-\sigma(\phi(w, {x}</em>{i}))=\frac{1}{1+{e}^{+\phi(w, {x}<em>{i})}}, &amp; \text{if  ${y}</em>{i} = -1$}<br>\end{cases}<br>$$</p>
-<p>把上述公式写成统一的形式如下：</p>
-<p>$$ P({y}<em>{i}|{x}</em>{i}) = \frac{1}{1+{e}^{-{y}<em>{i}\phi(w, {x}</em>{i})}}$$</p>
-<p>假设所有样本独立同分布，则likelyhood如下:</p>
-<p>$$ P(D|w) = \prod_{i}^{m} P({y}<em>{i}|{x}</em>{i})= \prod_{i}^{m}\frac{1}{1+{e}^{-{y}<em>{i}\phi(w, {x}</em>{i})}} $$</p>
-<p>相应的 Negative Log Likelihood 如下：</p>
-<p>$$ -log(P(D|w)) =- \sum_{i}^{m}log(P({y}<em>{i}|{x}</em>{i})) = \sum_{i}^{m}log(1+{e}^{-{y}<em>{i}\phi(w, {x}</em>{i})}) $$</p>
-<p>本来是要极大化概率，因为我们加了负号并取log，所以要极小化上述公式。再添加正则化项后，就得到如下优化函数：</p>
-<p>\begin{equation}<br>    \min_{w} \sum_{i}^{m}log(1+{e}^{-{y}<em>{i}\phi(w, {x}</em>{i})}) + \frac{\lambda}{2}\left|w\right|_2<br>\end{equation}</p>
+<h2 id="如何融合特征之间的交互信息"><a href="#如何融合特征之间的交互信息" class="headerlink" title="如何融合特征之间的交互信息"></a>如何融合特征之间的交互信息</h2><p>一般有两种方式可以融合特征之间的交互信息。一种从特征工程的角度，例如做两个特征之间的笛卡儿积，比如把性别和年龄两个特征做笛卡儿积的话，就会得到如下六个二值性特征（女&amp;&amp;青年，女&amp;&amp;中年，女&amp;&amp;老年，…，男&amp;&amp;老年）。另一种是从模型的角度，也就是本文要阐述的内容。<br>下面我们先从基本的没有考虑特征交互信息的 Logistic Regression 说起。假设我们有$m$ ${x}_{i}$个样本(${x}_{i}$， ${y}_{i}$), i = 1, 2, 3,… ,m。向量${x}_{i}$是$n$维特征向量，${y}_{i}$是标签，${y}_{i}\in \left\{ -1, 1\right\}$, 并定义如下的条件概率分布。</p>
+<script type="math/tex; mode=display">
+P({y}_{i}|{x}_{i}) =
+\begin{cases}
+\sigma(\phi(w, {x}_{i}))=\frac{1}{1+{e}^{-\phi(w, {x}_{i})}},  & \text{if  ${y}_{i} = 1$ } \\
+1-\sigma(\phi(w, {x}_{i}))=\frac{1}{1+{e}^{+\phi(w, {x}_{i})}}, & \text{if  ${y}_{i} = -1$}
+\end{cases}</script><p>把上述公式写成统一的形式如下：</p>
+<script type="math/tex; mode=display">P({y}_{i}|{x}_{i}) = \frac{1}{1+{e}^{-{y}_{i}\phi(w, {x}_{i})}}</script><p>假设所有样本独立同分布，则likelyhood如下:</p>
+<script type="math/tex; mode=display">P(D|w) = \prod_{i}^{m} P({y}_{i}|{x}_{i})= \prod_{i}^{m}\frac{1}{1+{e}^{-{y}_{i}\phi(w, {x}_{i})}}</script><p>相应的 Negative Log Likelihood 如下：</p>
+<script type="math/tex; mode=display">-log(P(D|w)) =- \sum_{i}^{m}log(P({y}_{i}|{x}_{i})) = \sum_{i}^{m}log(1+{e}^{-{y}_{i}\phi(w, {x}_{i})})</script><p>本来是要极大化概率，因为我们加了负号并取log，所以要极小化上述公式。再添加正则化项后，就得到如下优化函数：</p>
+<p>\begin{equation}<br>    \min_{w} \sum_{i}^{m}log(1+{e}^{-{y}_{i}\phi(w, {x}_{i})}) + \frac{\lambda}{2}\left|w\right|_2<br>\end{equation}</p>
 <p>其中$\lambda$是正则化项参数。</p>
 <p>\begin{equation}<br>{\phi}_{LM}(w, x) = w.x<br>\end{equation}</p>
 <p>公式$(2)$对应的是常见的逻辑斯蒂回归。$\phi_{LM}$模型只是考虑了多个特征之间的线性加权，很难学到特征之间的交互信息，比如女青年喜欢点击化妆品的广告。在介绍FM之前，我们先介绍degree-2 polynomial mappings (poly2)模型，并分析此模型的不足。</p>
 <h2 id="Ploy2-Degree-2-Polynomial-Mapping"><a href="#Ploy2-Degree-2-Polynomial-Mapping" class="headerlink" title="Ploy2 (Degree-2 Polynomial Mapping)"></a>Ploy2 (Degree-2 Polynomial Mapping)</h2><p>cheng 提出了2阶的多项式映射（degree-2 polynomial mapping），其实思想很简单，在线性的Logistic Regression中我们的$ \phi(w, x) = w.x$ 。而在ploy2中采用的是如下的 $ \phi(w, x)$：</p>
-<p>\begin{equation}<br>    {\phi}<em>{Ploy2}(w, x) = \sum</em>{i=1}^{m}\sum_{j=i+1}^{m} {w}<em>{ij} {x}</em>{i}{x}_{j}<br>\end{equation}</p>
-<p>上述公式考虑的所有特征的两两组合，上述模型一个比较大的缺点是在稀疏的数据集中，模型参数学习不充分。比如可能存在这样的$i，j$，在所有的样本中，${x}<em>{i}$与${x}</em>{j}$同时为非零值的样本不存在，那么我们就无法学习参数 ${w}<em>{ij}$，在上述toy数据集中 ${w}</em>{38}$是模型无法学习的，因为不存在样本满足<strong>广告类型 = 汽车</strong> &amp;&amp; <strong>年龄 = 老人</strong>，在我们的toy数据集中特征 <strong>广告类型 = 汽车</strong>对应的下标为3，特征<strong>年龄 = 老人</strong>对应的下标为 8。另外一个不足是模型的计算复杂度较下面要介绍的FM 模型要高一个量级,poly2模型的计算复杂度为$O({\bar{n}}^{2})$, $\bar{n}$是每个样本平均的非零个数。还有一点就是此模型的参数之间是相互独立的。下面我们把上述toy数据集对应的参数写成矩阵的形式，注意此矩阵是对称的。</p>
+<p>\begin{equation}<br>    {\phi}_{Ploy2}(w, x) = \sum_{i=1}^{m}\sum_{j=i+1}^{m} {w}_{ij} {x}_{i}{x}_{j}<br>\end{equation}</p>
+<p>上述公式考虑的所有特征的两两组合，上述模型一个比较大的缺点是在稀疏的数据集中，模型参数学习不充分。比如可能存在这样的$i，j$，在所有的样本中，${x}_{i}$与${x}_{j}$同时为非零值的样本不存在，那么我们就无法学习参数 ${w}_{ij}$，在上述toy数据集中 ${w}_{38}$是模型无法学习的，因为不存在样本满足<strong>广告类型 = 汽车</strong> &amp;&amp; <strong>年龄 = 老人</strong>，在我们的toy数据集中特征 <strong>广告类型 = 汽车</strong>对应的下标为3，特征<strong>年龄 = 老人</strong>对应的下标为 8。另外一个不足是模型的计算复杂度较下面要介绍的FM 模型要高一个量级,poly2模型的计算复杂度为$O({\bar{n}}^{2})$, $\bar{n}$是每个样本平均的非零个数。还有一点就是此模型的参数之间是相互独立的。下面我们把上述toy数据集对应的参数写成矩阵的形式，注意此矩阵是对称的。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -577,7 +583,9 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>当${\phi}_{Ploy2}(w, x)$作用于表2的第一个样本 $x = [1， 0， 0， 0， 1， 1， 0， 0]$，该样本如下表所示：</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -617,10 +625,11 @@
 </tr>
 </tbody>
 </table>
-<p>$${\phi}<em>{Ploy2}(w, x) = \sum</em>{i=1}^{8}\sum_{j = i+1}^{8} {w}<em>{ij} {x}</em>{i}{x}<em>{j}={w}</em>{15}\cdot1\cdot1 + {w}<em>{16} \cdot 1 \cdot 1+ {w}</em>{56} \cdot 1 \cdot 1$$</p>
-<h2 id="FM-Factorization-Machine"><a href="#FM-Factorization-Machine" class="headerlink" title="FM (Factorization Machine)"></a>FM (Factorization Machine)</h2><p>FM 模型是由steffen rendle提出因子分解模型。FM模型的点睛之处在于将${w}<em>{ij}$定义成${w}</em>{ij} =&lt;{v}<em>{i}, {v}</em>{j}&gt;$，其中$&lt;，&gt;$表示两个k维向量的内积 ，也就是说每一个特征对应一个$k$维的向量。</p>
-<p>\begin{equation}<br>    {\phi}<em>{FM}(w, x) = \sum</em>{i=1}^{m}\sum_{j = i+1}^{m} &lt;{v}<em>{i}, {v}</em>{j}&gt; {x}<em>{i}{x}</em>{j}<br>\end{equation}</p>
+</div>
+<script type="math/tex; mode=display">{\phi}_{Ploy2}(w, x) = \sum_{i=1}^{8}\sum_{j = i+1}^{8} {w}_{ij} {x}_{i}{x}_{j}={w}_{15}\cdot1\cdot1 + {w}_{16} \cdot 1 \cdot 1+ {w}_{56} \cdot 1 \cdot 1</script><h2 id="FM-Factorization-Machine"><a href="#FM-Factorization-Machine" class="headerlink" title="FM (Factorization Machine)"></a>FM (Factorization Machine)</h2><p>FM 模型是由steffen rendle提出因子分解模型。FM模型的点睛之处在于将${w}_{ij}$定义成${w}_{ij} =&lt;{v}_{i}, {v}_{j}&gt;$，其中$&lt;，&gt;$表示两个k维向量的内积 ，也就是说每一个特征对应一个$k$维的向量。</p>
+<p>\begin{equation}<br>    {\phi}_{FM}(w, x) = \sum_{i=1}^{m}\sum_{j = i+1}^{m} &lt;{v}_{i}, {v}_{j}&gt; {x}_{i}{x}_{j}<br>\end{equation}</p>
 <p>把上述toy数据集对应的参数写成如下矩阵$V$的形式， 记${v}_{i}$是$k$维的特征向量，$i= 1， 2，.，，，， 8$。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -660,9 +669,11 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>从参数的数量来说，一般情况下，$k$ 通常小于 $n$, 所以FM的参数要少于Ploy2, Ploy2模型的参数矩阵是 $n \times n$的，FM的参数矩阵是 $n \times k$, 假设模型的特征个数是$n$维的。但是从表达能力来讲，两者是旗鼓相当的，在数学理论上(<a href="http://mathworld.wolfram.com/CholeskyDecomposition.html" target="_blank" rel="noopener">Cholesky decomposition</a>) ，对任意的半正定矩阵$W$，总是存在一个矩阵$V$，使的$W= V\cdot{V}^{T}$，只要$k$足够大。也就是说 $V$ 能够表达任意的矩阵$W$。</p>
-<p>上面讲到ploy2在数据稀疏的情况下无法充分学习模型的参数，而FM可以解决这样的难题。还是以之前的toy数据集举例，不存在样本满足<strong>广告类型 = 汽车</strong> &amp;&amp; <strong>年龄 = 老年</strong>，使得ploy2无法学习参数${w}<em>{38}$。FM是这样学习${w}</em>{38}$参数的：满足<strong>广告类型 = 汽车</strong> &amp;&amp; <strong>年龄 = 任意值</strong> 的样本能够学习向量${v}<em>{3}$（<strong>广告类型 = 汽车</strong> 对应的特征下表是3），同理那么满足<strong>广告类型 = 任意值</strong> &amp;&amp; <strong>年龄 = 老年</strong> 的样本能够学习向量${v}</em>{8}$（<strong>年龄 = 老年</strong>对应的特征下标是8），而${w}<em>{38} = &lt;{v}</em>{3}, {v}<em>{8}&gt;$。再说计算复杂度上，FM的计算复杂度是$O（k\bar{n}）$，$k$是因子向量的维数，$\bar{n}$是每个样本平均的非零个数。 最后，FM模型中的参数是有关联的，比如参数${w}</em>{ij}$和${w}<em>{ij+1}$,因为他们公用因子向量${v}</em>{i}$， 因为${w}<em>{ij} = &lt;{v}</em>{i}, {v}<em>{j}&gt;, {w}</em>{ij+1} = &lt;{v}<em>{i}$, ${v}</em>{j+1}&gt;$。</p>
+<p>上面讲到ploy2在数据稀疏的情况下无法充分学习模型的参数，而FM可以解决这样的难题。还是以之前的toy数据集举例，不存在样本满足<strong>广告类型 = 汽车</strong> &amp;&amp; <strong>年龄 = 老年</strong>，使得ploy2无法学习参数${w}_{38}$。FM是这样学习${w}_{38}$参数的：满足<strong>广告类型 = 汽车</strong> &amp;&amp; <strong>年龄 = 任意值</strong> 的样本能够学习向量${v}_{3}$（<strong>广告类型 = 汽车</strong> 对应的特征下表是3），同理那么满足<strong>广告类型 = 任意值</strong> &amp;&amp; <strong>年龄 = 老年</strong> 的样本能够学习向量${v}_{8}$（<strong>年龄 = 老年</strong>对应的特征下标是8），而${w}_{38} = &lt;{v}_{3}, {v}_{8}&gt;$。再说计算复杂度上，FM的计算复杂度是$O（k\bar{n}）$，$k$是因子向量的维数，$\bar{n}$是每个样本平均的非零个数。 最后，FM模型中的参数是有关联的，比如参数${w}_{ij}$和${w}_{ij+1}$,因为他们公用因子向量${v}_{i}$， 因为${w}_{ij} = &lt;{v}_{i}, {v}_{j}&gt;, {w}_{ij+1} = &lt;{v}_{i}$, ${v}_{j+1}&gt;$。</p>
 <p>当${\phi}_{FM}(w, x)$作用于表2的第一个样本$x = [1， 0， 0， 0， 1， 1， 0， 0]$, 该样本如下表所示：</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -702,10 +713,11 @@
 </tr>
 </tbody>
 </table>
-<p>$${\phi}<em>{FM}(w, x) = \sum</em>{i=1}^{8}\sum_{j = i+1}^{8} {w}<em>{ij} {x}</em>{i}{x}<em>{j}=&lt;{v}</em>{1}, {v}<em>{5}&gt;\cdot1\cdot1 + &lt;{v}</em>{1}, {v}<em>{6}&gt; \cdot 1 \cdot 1+  &lt;{v}</em>{5}, {v}_{6}&gt; \cdot 1 \cdot 1$$</p>
-<h2 id="FFM-Field-aware-Factorization-Machine"><a href="#FFM-Field-aware-Factorization-Machine" class="headerlink" title="FFM (Field-aware Factorization Machine)"></a>FFM (Field-aware Factorization Machine)</h2><p>FFM是由Yu-Chin Juan等提出来的，他们获得了Kaggle举办的 Criteo和Avazu的两个ctr预估比赛的冠军，他们比赛用的模型就是FFM，其实就是把 $ \phi(w, x)$定义成如下形式。</p>
-<p>\begin{equation}<br>    {\phi}<em>{FFM}(w, x) = \sum</em>{i=1}^{m}\sum_{j = i+1}^{m} &lt;{v}<em>{i,{f}</em>{2}}, {v}<em>{i,{f}</em>{1}}&gt; {x}<em>{i}{x}</em>{j}<br>\end{equation}</p>
-<p>${f}<em>{1}$和${f}</em>{2}$分别是特征$i$和特征$j$的域。域是比特征更宽泛的概念，比如在本文的toy数据集上，有8个特征，有3个域，前三个特征属于广告类型域，中间两个特征属于性别域，后三个特征属于年龄域，这三个域分别记作$A, B, C$， 由此得到下面的参数表，其中${v}<em>{iA}，{v}</em>{iB}，{v}<em>{iC}, i = 1, 2, 3$ 分别是 $k$ 维的向量，这里的参数矩阵是三维的。FFM 相比于FM模型来说，FFM刻画特征之间的关联更加细致。之前在FM 模型中一个特征对应一个因子向量，FFM 的一个特征对应若干个因子向量。 FFM的计算复杂度是$O（k{\bar{n}}^{2}）$，$k$是因子向量的维数，$\bar{n}$是每个样本平均的非零个数,通常情况下${k}</em>{FFM}\ll{k}_{FM}$。</p>
+</div>
+<script type="math/tex; mode=display">{\phi}_{FM}(w, x) = \sum_{i=1}^{8}\sum_{j = i+1}^{8} {w}_{ij} {x}_{i}{x}_{j}=<{v}_{1}, {v}_{5}>\cdot1\cdot1 + <{v}_{1}, {v}_{6}> \cdot 1 \cdot 1+  <{v}_{5}, {v}_{6}> \cdot 1 \cdot 1</script><h2 id="FFM-Field-aware-Factorization-Machine"><a href="#FFM-Field-aware-Factorization-Machine" class="headerlink" title="FFM (Field-aware Factorization Machine)"></a>FFM (Field-aware Factorization Machine)</h2><p>FFM是由Yu-Chin Juan等提出来的，他们获得了Kaggle举办的 Criteo和Avazu的两个ctr预估比赛的冠军，他们比赛用的模型就是FFM，其实就是把 $ \phi(w, x)$定义成如下形式。</p>
+<p>\begin{equation}<br>    {\phi}_{FFM}(w, x) = \sum_{i=1}^{m}\sum_{j = i+1}^{m} &lt;{v}_{i,{f}_{2}}, {v}_{i,{f}_{1}}&gt; {x}_{i}{x}_{j}<br>\end{equation}</p>
+<p>${f}_{1}$和${f}_{2}$分别是特征$i$和特征$j$的域。域是比特征更宽泛的概念，比如在本文的toy数据集上，有8个特征，有3个域，前三个特征属于广告类型域，中间两个特征属于性别域，后三个特征属于年龄域，这三个域分别记作$A, B, C$， 由此得到下面的参数表，其中${v}_{iA}，{v}_{iB}，{v}_{iC}, i = 1, 2, 3$ 分别是 $k$ 维的向量，这里的参数矩阵是三维的。FFM 相比于FM模型来说，FFM刻画特征之间的关联更加细致。之前在FM 模型中一个特征对应一个因子向量，FFM 的一个特征对应若干个因子向量。 FFM的计算复杂度是$O（k{\bar{n}}^{2}）$，$k$是因子向量的维数，$\bar{n}$是每个样本平均的非零个数,通常情况下${k}_{FFM}\ll{k}_{FM}$。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -745,18 +757,20 @@
 </tr>
 <tr>
 <td style="text-align:center">特征对应的若干因子向量</td>
-<td style="text-align:center">$ {v}<em>{1B}, {v}</em>{1C}  $</td>
-<td style="text-align:center">${v}<em>{2B}, {v}</em>{2C}$</td>
-<td style="text-align:center">${v}<em>{3B}, {v}</em>{3C}$</td>
-<td style="text-align:center">${v}<em>{4A}, {v}</em>{4C}$</td>
-<td style="text-align:center">${v}<em>{5A}, {v}</em>{5C}$</td>
-<td style="text-align:center">${v}<em>{6A}, {v}</em>{6B}$</td>
-<td>${v}<em>{7A}, {v}</em>{7B}$</td>
-<td>${v}<em>{8A}, {v}</em>{8B}$</td>
+<td style="text-align:center">$ {v}_{1B}, {v}_{1C}  $</td>
+<td style="text-align:center">${v}_{2B}, {v}_{2C}$</td>
+<td style="text-align:center">${v}_{3B}, {v}_{3C}$</td>
+<td style="text-align:center">${v}_{4A}, {v}_{4C}$</td>
+<td style="text-align:center">${v}_{5A}, {v}_{5C}$</td>
+<td style="text-align:center">${v}_{6A}, {v}_{6B}$</td>
+<td>${v}_{7A}, {v}_{7B}$</td>
+<td>${v}_{8A}, {v}_{8B}$</td>
 </tr>
 </tbody>
 </table>
+</div>
 <p>当${\phi}_{FFM}(w, x)$作用于表2的第一个样本$x = [1， 0， 0， 0， 1， 1， 0， 0]$，该样本如下表所示：</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -796,8 +810,10 @@
 </tr>
 </tbody>
 </table>
-<p>$${\phi}<em>{FFM}(w, x) = \sum</em>{i=1}^{8}\sum_{j = i+1}^{8} {w}<em>{ij} {x}</em>{i}{x}<em>{j}=&lt;{v}</em>{1B}, {v}<em>{5A}&gt;\cdot1\cdot1 + &lt;{v}</em>{1B}, {v}<em>{6A}&gt; \cdot 1 \cdot 1+  &lt;{v}</em>{5C}, {v}_{6B}&gt; \cdot 1 \cdot 1$$</p>
-<h2 id="FFM的数据格式"><a href="#FFM的数据格式" class="headerlink" title="FFM的数据格式"></a>FFM的数据格式</h2><p>数据格式类似与libsvm格式，具体如下，其中field， feat， val分别表示域的编号，特征的编号，特征值。<br>$$label　 field1:feat1：val1　  field2:feat2:val2   　… 　　$$<br>那么如下样本 $x = [1， 0， 0， 0， 1， 1， 0， 0] ,  y = 1$ 对应的格式如下：</p>
+</div>
+<script type="math/tex; mode=display">{\phi}_{FFM}(w, x) = \sum_{i=1}^{8}\sum_{j = i+1}^{8} {w}_{ij} {x}_{i}{x}_{j}=<{v}_{1B}, {v}_{5A}>\cdot1\cdot1 + <{v}_{1B}, {v}_{6A}> \cdot 1 \cdot 1+  <{v}_{5C}, {v}_{6B}> \cdot 1 \cdot 1</script><h2 id="FFM的数据格式"><a href="#FFM的数据格式" class="headerlink" title="FFM的数据格式"></a>FFM的数据格式</h2><p>数据格式类似与libsvm格式，具体如下，其中field， feat， val分别表示域的编号，特征的编号，特征值。</p>
+<script type="math/tex; mode=display">label　 field1:feat1：val1　  field2:feat2:val2   　...</script><p>那么如下样本 $x = [1， 0， 0， 0， 1， 1， 0， 0] ,  y = 1$ 对应的格式如下：</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -848,10 +864,11 @@
 </tr>
 </tbody>
 </table>
-<p>$$1　 A:1：1　  B:5：1    　C:6：1$$</p>
-<p>实际情况下，对域也要进行编号，比如将上面的A, B, C域分别对应1， 2， 3整数值。</p>
+</div>
+<script type="math/tex; mode=display">1　 A:1：1　  B:5：1    　C:6：1</script><p>实际情况下，对域也要进行编号，比如将上面的A, B, C域分别对应1， 2， 3整数值。</p>
 <h3 id="离散特征"><a href="#离散特征" class="headerlink" title="离散特征"></a>离散特征</h3><p>对离散特征一般进行二值化，在本文的toy数据集中，广告类型和性别都是离散性的特征，我们用one-hot进行二值化。</p>
 <h3 id="数值型特征"><a href="#数值型特征" class="headerlink" title="数值型特征"></a>数值型特征</h3><p>有两种处理方式，一种是离散化，比如之前对年龄字段进行离散化(discretization)，年龄域对应三个特征（青年，中年，老年）。另一种即(dummpy fields), 把每一数值特征作为一个域，那么年龄特征和年龄域就是一一对应的关系，如下表所示，对年龄采用dummy  fields方式。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -894,9 +911,11 @@
 </tr>
 </tbody>
 </table>
-<p>年龄采用dummy  fields方式相应的FFM格式如下:<br>$$1　 A:1：1　  B:5：1    　C:6：25$$</p>
-<h2 id="以上四种模型在数据集上的实验效果"><a href="#以上四种模型在数据集上的实验效果" class="headerlink" title="以上四种模型在数据集上的实验效果"></a>以上四种模型在数据集上的实验效果</h2><p>上面总共讨论四种模型，即将$\phi(w, x) $分别取成${\phi}<em>{LM}(w, x)， {\phi}</em>{poly2}(w, x)， {\phi}<em>{FM}(w, x)， {\phi}</em>{FFM}(w, x) $，其中线性模型${\phi}_{LM}(w, x)$没有考虑特征的交互信息。FFM 模型的优化算法采用的随机梯度下降法和自适应学习率，模型的参数不多，一般是在验证集上选取最佳参数。</p>
+</div>
+<p>年龄采用dummy  fields方式相应的FFM格式如下:</p>
+<script type="math/tex; mode=display">1　 A:1：1　  B:5：1    　C:6：25</script><h2 id="以上四种模型在数据集上的实验效果"><a href="#以上四种模型在数据集上的实验效果" class="headerlink" title="以上四种模型在数据集上的实验效果"></a>以上四种模型在数据集上的实验效果</h2><p>上面总共讨论四种模型，即将$\phi(w, x) $分别取成${\phi}_{LM}(w, x)， {\phi}_{poly2}(w, x)， {\phi}_{FM}(w, x)， {\phi}_{FFM}(w, x) $，其中线性模型${\phi}_{LM}(w, x)$没有考虑特征的交互信息。FFM 模型的优化算法采用的随机梯度下降法和自适应学习率，模型的参数不多，一般是在验证集上选取最佳参数。</p>
 <h3 id="实验一"><a href="#实验一" class="headerlink" title="实验一"></a>实验一</h3><p>首先是在Criteo和Avazu两个数据集上，Criteo和Avazu是两家美国的互联网广告公司，他们在kaggle举办了ctr预估的比赛，FFM的作者获得了两个比赛的冠军。下篇博客会详细介绍他们的比赛的解决方案(即特征工程)，将他们比赛时的采用的特征工程策略作用原始数据集，得到下面的数据集。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -921,9 +940,10 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>采用如下的 Logloss 评估标准，该指标越小，代表模型效果越好。</p>
-<p>$$ logloss = \frac{1}{m} \sum_{i=1}^{m}log(1+{e}^{-{y}<em>{i}\phi(w, {x}</em>{i})})$$</p>
-<p>下面只展示每种模型在最佳参数下的实验结果,模型的训练时间和具体的优化算法和机器配置有关，本实验是在相同的机器配置下的结果,下面是不同模型在criteo数据集上的结果，avazu的结果与之类似。</p>
+<script type="math/tex; mode=display">logloss = \frac{1}{m} \sum_{i=1}^{m}log(1+{e}^{-{y}_{i}\phi(w, {x}_{i})})</script><p>下面只展示每种模型在最佳参数下的实验结果,模型的训练时间和具体的优化算法和机器配置有关，本实验是在相同的机器配置下的结果,下面是不同模型在criteo数据集上的结果，avazu的结果与之类似。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -955,8 +975,10 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>可以看出，在这个两个ctr数据集上，效果上 FFM &gt; FM&gt;ploy2&gt;LM，训练时间上 FFM &gt; FM&gt;ploy2&gt;LM。</p>
 <h3 id="实验二"><a href="#实验二" class="headerlink" title="实验二"></a>实验二</h3><p>实验一是在两个ctr数据集上实验，下面考虑的是模型在其他场景下的表现。下面考虑的是在6个数据集上的表现。原特征类型一栏表示该数据集包含的特征的种类。数值+离散表示数据集中两种类型的特征都有，离散表示该数据集中只有离散特征。对离散性的特征进行了二值化处理，数值型的特征这里做了两种处理（dummpy fields 和 discretization），分别比较效果。</p>
+<div class="table-container">
 <table>
 <thead>
 <tr>
@@ -1053,13 +1075,14 @@
 </tr>
 </tbody>
 </table>
+</div>
 <p>一，在kDD2010-bridge， KDD2012两个数据集上，FFM要好于其他模型，原因是这两个数据集大部分特征都是离散的，而且在特征在二值化之后非常稀疏。二，在phishing 和 adult数据集上，FFM效果不明显。对phishing数据集来说，是因为phishing数据集不够稀疏。对adult来说特征的二阶关联没起到作用，因为FFM，FM，poly2这三者和线性模型LM几乎没有差别。</p>
 <p>当一个数据集只有数值型特征时(对应上表的后四行)，FFM模型并没有很大的优势。如果只用(dummpy fields),FFM并没有好于FM，可能是域信息并没有起到很大作用。另一方面，如果采用（descretization）方式，尽管FFM要好于其他模型，但是效果要差于用dummpy方式(FFM 在ijcnn(discretization)的效果是0.18608 明显差于ijcnn(dummpy fields)的0.0692)。于是得到如下的FFM模型使用指南：</p>
 <ul>
 <li>如果数据集包含很多的离散性特征，数值型特征很少，而且转化后的二值特征比较稀疏，那么FFM模型会很有效。</li>
 <li>如果数据集包含很多的数值性特征，离散型特征很少，FFM表现不尽理想。</li>
 </ul>
-<h1 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h1><p>本文从一个简单的toy数据集出发，循序渐进的讲述了LM，ploy2， FM， FFM模型，其中LM是没有考虑特征交互信息的，本文没有提到FM的一阶信息，原论文有用到一阶信息。并比较了模型之间的不同。我觉得最核心的就是FM把${w}<em>{ij}$定义成${w}</em>{ij} =&lt;{v}<em>{i}, {v}</em>{j}&gt;$，相较于poly2模型，模型的表达能力没有降低，计算复杂度还降了一个量级，还能在稀疏的数据下学习。最后从不同数据集上的实验分析了FFM模型的适用场景。这也是本人的第一篇博客，有任何的建议和疑问，欢迎在下面评论和指正。</p>
+<h1 id="后记"><a href="#后记" class="headerlink" title="后记"></a>后记</h1><p>本文从一个简单的toy数据集出发，循序渐进的讲述了LM，ploy2， FM， FFM模型，其中LM是没有考虑特征交互信息的，本文没有提到FM的一阶信息，原论文有用到一阶信息。并比较了模型之间的不同。我觉得最核心的就是FM把${w}_{ij}$定义成${w}_{ij} =&lt;{v}_{i}, {v}_{j}&gt;$，相较于poly2模型，模型的表达能力没有降低，计算复杂度还降了一个量级，还能在稀疏的数据下学习。最后从不同数据集上的实验分析了FFM模型的适用场景。这也是本人的第一篇博客，有任何的建议和疑问，欢迎在下面评论和指正。</p>
 <h1 id="参考文献"><a href="#参考文献" class="headerlink" title="参考文献"></a>参考文献</h1><p>1.<a href="http://www.algo.uni-konstanz.de/members/rendle/pdf/Rendle2010FM.pdf" target="_blank" rel="noopener">Factorization Machines</a><br>2.<a href="https://www.andrew.cmu.edu/user/yongzhua/conferences/ffm.pdf" target="_blank" rel="noopener">Field-aware Factorization Machines for CTR Prediction</a><br>3.<a href="https://tech.meituan.com/deep-understanding-of-ffm-principles-and-practices.html" target="_blank" rel="noopener">深入FFM原理与实践</a><br>4.<a href="https://www.kaggle.com/c/criteo-display-ad-challenge" target="_blank" rel="noopener">Kaggle Display Advertising Challenge</a><br>5.<a href="https://www.kaggle.com/c/avazu-ctr-prediction" target="_blank" rel="noopener">Kaggle Avazu Click-Through Rate Prediction</a><br>6.<a href="http://mathworld.wolfram.com/CholeskyDecomposition.html" target="_blank" rel="noopener">Cholesky decomposition</a></p>
 
       
@@ -1173,7 +1196,7 @@
               
                 <a href="/archives/">
               
-                  <span class="site-state-item-count">2</span>
+                  <span class="site-state-item-count">3</span>
                   <span class="site-state-item-name">日志</span>
                 </a>
               </div>
